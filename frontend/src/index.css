@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-navy text-white font-body antialiased;
+  background: radial-gradient(ellipse at top, #0d1f3c 0%, #0a1628 60%);
+  min-height: 100vh;
+}
+
+@layer components {
+  .glass-card {
+    background: rgba(255, 255, 255, 0.04);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(198, 167, 94, 0.2);
+    border-radius: 12px;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .btn-gold {
+    background: linear-gradient(135deg, #c6a75e, #d4b876);
+    color: #0a1628;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    padding: 0.75rem 2rem;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .btn-gold:hover:not(:disabled) {
+    background: linear-gradient(135deg, #d4b876, #c6a75e);
+    box-shadow: 0 4px 20px rgba(198, 167, 94, 0.35);
+  }
+  .btn-gold:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid rgba(198, 167, 94, 0.5);
+    color: #c6a75e;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    padding: 0.75rem 2rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(198, 167, 94, 0.08);
+  }
+
+  .input-dark {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(198, 167, 94, 0.2);
+    border-radius: 6px;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    padding: 0.625rem 0.875rem;
+    width: 100%;
+  }
+  .input-dark:focus {
+    border-color: rgba(198, 167, 94, 0.6);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(198, 167, 94, 0.1);
+  }
+
+  .gold-text-gradient {
+    background: linear-gradient(135deg, #c6a75e, #d4b876);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
