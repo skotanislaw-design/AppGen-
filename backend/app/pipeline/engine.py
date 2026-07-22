@@ -1,9 +1,15 @@
-"""Ο agent ελέγχου: ταξινόμηση → αυστηρός έλεγχος πληρότητας → βαθμολόγηση.
+"""Ο agent ελέγχου: ταξινόμηση → ανάθεση σε ειδικό κλάδου → έλεγχος → βαθμολόγηση.
 
-Στάδιο 1 (ταξινόμηση) και Στάδιο 2 (έλεγχος) εκτελούνται με structured outputs
-(output_config.format), ώστε η απόκριση να είναι εγγυημένα έγκυρο JSON κατά το
-σχήμα. Η τελική βαθμολογία υπολογίζεται ντετερμινιστικά στο scorer — όχι από
-το μοντέλο.
+Η ταξινόμηση (στάδιο 1) γίνεται από ουδέτερο «δικονομολόγο διαλογής». Ο κατ'
+ουσίαν έλεγχος (στάδιο 2) ΔΕΝ γίνεται από γενικό ελεγκτή: το δικόγραφο
+δρομολογείται στον ειδικό του οικείου κλάδου (ποινικολόγο, αστικολόγο-
+δικονομολόγο, διοικητικολόγο, ειδικό εξωδικαστικής πρακτικής — βλ.
+experts.py), ο οποίος φέρει το γνωστικό υπόβαθρο και το δόγμα ελέγχου του
+κλάδου του.
+
+Και τα δύο στάδια εκτελούνται με structured outputs (output_config.format),
+ώστε η απόκριση να είναι εγγυημένα έγκυρο JSON κατά το σχήμα. Η τελική
+βαθμολογία υπολογίζεται ντετερμινιστικά στο scorer — όχι από το μοντέλο.
 """
 
 import json
@@ -17,9 +23,11 @@ from pydantic import BaseModel
 from app.config import Settings, get_settings
 from app.pipeline import checklists
 from app.pipeline.checklists import CATEGORY_LABELS, Criterion
+from app.pipeline.experts import ExpertProfile, expert_for
 from app.pipeline.scorer import compute_score
 from app.schemas import (
     AuditModelOutput,
+    AuditorInfo,
     AuditReport,
     CriterionReport,
     DocumentClassification,
@@ -32,10 +40,18 @@ class PipelineError(RuntimeError):
     """Σφάλμα εκτέλεσης του pipeline με μήνυμα κατάλληλο για τον χρήστη."""
 
 
-SYSTEM_PROMPT = """\
-Είσαι έμπειρος Έλληνας δικηγόρος με διδακτορική κατάρτιση στο ουσιαστικό και \
-δικονομικό δίκαιο (ποινικό, αστικό, διοικητικό), και ενεργείς ως αυστηρός \
-ελεγκτής νομικής πληρότητας δικογράφων στο γραφείο Skotanis & Associates.
+TRIAGE_SYSTEM_PROMPT = """\
+Είσαι έμπειρος Έλληνας δικονομολόγος και ενεργείς ως υπεύθυνος διαλογής \
+δικογράφων στο γραφείο Skotanis & Associates. Έργο σου είναι αποκλειστικά η \
+ακριβής ταξινόμηση του εγγράφου που σου υποβάλλεται — είδος, κλάδος δικαίου, \
+σκοπός, δικονομικό πλαίσιο — ώστε ο κατ' ουσίαν έλεγχος να ανατεθεί στον \
+ειδικό του οικείου κλάδου. Δεν αξιολογείς την ποιότητα του εγγράφου. Κρίνεις \
+μόνο βάσει του κειμένου και του δηλωθέντος πλαισίου, χωρίς εικασίες.
+"""
+
+COMMON_AUDIT_RULES = """\
+Ενεργείς ως αυστηρός ελεγκτής νομικής πληρότητας δικογράφων στο γραφείο \
+Skotanis & Associates, εντός του πεδίου της ειδικότητάς σου.
 
 Αποστολή σου είναι ο ενδελεχής, αμερόληπτος και αυστηρός έλεγχος του εγγράφου \
 που σου υποβάλλεται: τυπική πληρότητα, ουσιαστική επάρκεια, νομική τεκμηρίωση \
@@ -58,7 +74,15 @@ SYSTEM_PROMPT = """\
 δικανικού ύφους, χωρίς κοινοτοπίες.
 6. Δεν επινοείς περιστατικά, νομολογία ή διατάξεις. Όπου δεν είσαι βέβαιος \
 για την τρέχουσα μορφή διάταξης, διατυπώνεις τη σχετική επιφύλαξη.
+7. Αν το έγγραφο εμπλέκει παρεμπιπτόντως ζητήματα άλλου κλάδου δικαίου εκτός \
+της ειδικότητάς σου, τα καταγράφεις στα extra_findings με ρητή σύσταση \
+ελέγχου από ειδικό του οικείου κλάδου — δεν τα προσπερνάς σιωπηρά.
 """
+
+
+def build_audit_system_prompt(expert: ExpertProfile) -> str:
+    """System prompt σταδίου 2: ταυτότητα ειδικού + κοινοί κανόνες ελέγχου."""
+    return f"{expert.identity}\n\n{COMMON_AUDIT_RULES}"
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +105,7 @@ async def _structured_call(
     client: AsyncAnthropic,
     settings: Settings,
     *,
+    system_prompt: str,
     document: dict[str, Any],
     task: str,
     output_model: type[T],
@@ -99,7 +124,7 @@ async def _structured_call(
             system=[
                 {
                     "type": "text",
-                    "text": SYSTEM_PROMPT,
+                    "text": system_prompt,
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
@@ -166,6 +191,7 @@ async def classify(
     result = await _structured_call(
         client,
         settings,
+        system_prompt=TRIAGE_SYSTEM_PROMPT,
         document=document,
         task=task,
         output_model=DocumentClassification,
@@ -237,6 +263,7 @@ async def audit(
     document: dict[str, Any],
     classification: DocumentClassification,
     criteria: list[Criterion],
+    expert: ExpertProfile,
 ) -> AuditModelOutput:
     task = AUDIT_TASK_TEMPLATE.format(
         label=classification.label,
@@ -248,6 +275,7 @@ async def audit(
     return await _structured_call(
         client,
         settings,
+        system_prompt=build_audit_system_prompt(expert),
         document=document,
         task=task,
         output_model=AuditModelOutput,
@@ -265,6 +293,7 @@ def _build_report(
     classification: DocumentClassification,
     criteria: list[Criterion],
     audit_output: AuditModelOutput,
+    expert: ExpertProfile,
 ) -> AuditReport:
     crit_by_id = {c.id: c for c in criteria}
     # Κρατάμε μόνο αξιολογήσεις που αντιστοιχούν σε πραγματικά κριτήρια·
@@ -292,6 +321,11 @@ def _build_report(
 
     return AuditReport(
         classification=classification,
+        auditor=AuditorInfo(
+            branch=expert.branch,
+            title=expert.title,
+            description=expert.description,
+        ),
         score=score,
         criteria=criteria_reports,
         extra_findings=audit_output.extra_findings,
@@ -348,11 +382,26 @@ async def run_pipeline_events(
             classification = await classify(client, settings, document)
         yield "classified", classification
 
+        # Δρομολόγηση στον ειδικό του κλάδου — ο ποινικολόγος δεν ελέγχει
+        # διοικητικά δικόγραφα και αντιστρόφως.
+        expert = expert_for(classification.branch)
         criteria = checklists.criteria_for(classification.doc_type)
-        yield "auditing", {"criteria_count": len(criteria)}
-        audit_output = await audit(client, settings, document, classification, criteria)
+        yield (
+            "auditing",
+            {
+                "criteria_count": len(criteria),
+                "auditor": {
+                    "branch": expert.branch,
+                    "title": expert.title,
+                    "description": expert.description,
+                },
+            },
+        )
+        audit_output = await audit(
+            client, settings, document, classification, criteria, expert
+        )
 
-        report = _build_report(settings, classification, criteria, audit_output)
+        report = _build_report(settings, classification, criteria, audit_output, expert)
         yield "complete", report
 
 

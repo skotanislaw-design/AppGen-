@@ -27,6 +27,9 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onReset }) => (
               Απευθύνεται: {report.classification.court_or_authority}
             </p>
           )}
+          <p className="mt-3 inline-flex items-center gap-2 rounded-full border border-gold/30 bg-gold/10 px-3 py-1 text-xs text-gold-light">
+            <span className="font-semibold">Έλεγχος από:</span> {report.auditor.title}
+          </p>
         </div>
         <CategoryBreakdown categories={report.score.categories} />
         <p className="text-sm leading-relaxed text-silver-light">{report.score.verdict_detail}</p>
@@ -39,9 +42,12 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onReset }) => (
     </div>
 
     <div className="glass-card p-6 md:p-8">
-      <h3 className="mb-3 border-b border-gold/20 pb-2 font-display text-2xl font-semibold text-gold">
+      <h3 className="mb-1 border-b border-gold/20 pb-2 font-display text-2xl font-semibold text-gold">
         Συνολική αξιολόγηση
       </h3>
+      <p className="mb-4 text-xs text-silver">
+        {report.auditor.title} — {report.auditor.description}
+      </p>
       <div className="flex flex-col gap-4 text-sm leading-7 text-white/90">
         {report.overall_assessment
           .split(/\n{2,}/)

@@ -3,11 +3,21 @@ import { DocumentInput } from './components/DocumentInput';
 import { ProgressPanel } from './components/ProgressPanel';
 import { ReportView } from './components/ReportView';
 import { analyzeStream, fetchDocumentTypes } from './lib/api';
-import type { AuditReport, DocumentClassification, DocumentTypeInfo } from './types';
+import type {
+  AuditorInfo,
+  AuditReport,
+  DocumentClassification,
+  DocumentTypeInfo,
+} from './types';
 
 type Phase =
   | { name: 'idle' }
-  | { name: 'running'; step: 'classifying' | 'auditing'; classification: DocumentClassification | null }
+  | {
+      name: 'running';
+      step: 'classifying' | 'auditing';
+      classification: DocumentClassification | null;
+      auditor: AuditorInfo | null;
+    }
   | { name: 'done'; report: AuditReport }
   | { name: 'error'; message: string };
 
@@ -26,17 +36,22 @@ export default function App() {
     context: string | null,
     docTypeHint: string | null,
   ) => {
-    setPhase({ name: 'running', step: 'classifying', classification: null });
+    setPhase({ name: 'running', step: 'classifying', classification: null, auditor: null });
     try {
       let classification: DocumentClassification | null = null;
       for await (const event of analyzeStream(text, context, docTypeHint)) {
         switch (event.stage) {
           case 'classified':
             classification = event.data;
-            setPhase({ name: 'running', step: 'auditing', classification });
+            setPhase({ name: 'running', step: 'auditing', classification, auditor: null });
             break;
           case 'auditing':
-            setPhase({ name: 'running', step: 'auditing', classification });
+            setPhase({
+              name: 'running',
+              step: 'auditing',
+              classification,
+              auditor: event.data.auditor,
+            });
             break;
           case 'complete':
             setPhase({ name: 'done', report: event.data });
@@ -82,7 +97,11 @@ export default function App() {
           <DocumentInput documentTypes={documentTypes} disabled={false} onSubmit={runAnalysis} />
         )}
         {phase.name === 'running' && (
-          <ProgressPanel state={phase.step} classification={phase.classification} />
+          <ProgressPanel
+            state={phase.step}
+            classification={phase.classification}
+            auditor={phase.auditor}
+          />
         )}
         {phase.name === 'done' && (
           <ReportView report={phase.report} onReset={() => setPhase({ name: 'idle' })} />

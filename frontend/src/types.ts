@@ -56,8 +56,15 @@ export interface Suggestion {
   rationale: string;
 }
 
+export interface AuditorInfo {
+  branch: string;
+  title: string;
+  description: string;
+}
+
 export interface AuditReport {
   classification: DocumentClassification;
+  auditor: AuditorInfo;
   score: ScoreSummary;
   criteria: CriterionReport[];
   extra_findings: ExtraFinding[];
@@ -76,6 +83,6 @@ export interface DocumentTypeInfo {
 export type PipelineStage =
   | { stage: 'classifying'; data: null }
   | { stage: 'classified'; data: DocumentClassification }
-  | { stage: 'auditing'; data: { criteria_count: number } }
+  | { stage: 'auditing'; data: { criteria_count: number; auditor: AuditorInfo } }
   | { stage: 'complete'; data: AuditReport }
   | { stage: 'error'; data: { detail: string; code: string } };

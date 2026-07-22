@@ -155,8 +155,15 @@ class ScoreSummary(BaseModel):
     categories: list[CategoryScore]
 
 
+class AuditorInfo(BaseModel):
+    branch: str
+    title: str
+    description: str
+
+
 class AuditReport(BaseModel):
     classification: DocumentClassification
+    auditor: AuditorInfo
     score: ScoreSummary
     criteria: list[CriterionReport]
     extra_findings: list[ExtraFinding]
