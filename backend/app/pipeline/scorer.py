@@ -14,10 +14,20 @@ from app.pipeline.checklists import (
     Category,
     Criterion,
 )
-from app.schemas import CategoryScore, CriterionEvaluation, ScoreSummary
+from app.schemas import (
+    AuthenticityVerdict,
+    CategoryScore,
+    CriterionEvaluation,
+    ScoreSummary,
+)
 
 CAP_MISSING_CRITICAL = 45.0
 CAP_PARTIAL_CRITICAL = 70.0
+
+# Πύλη προτύπου γραφείου: έγγραφο με σαφή ίχνη AI δεν μπορεί να χαρακτηριστεί
+# ούτε καν επαρκές· οριακό κείμενο δεν μπορεί να είναι «Άρτιο».
+FIRM_CAP_AI_MARKED = 55.0
+FIRM_CAP_BORDERLINE = 85.0
 
 VERDICT_BANDS: list[tuple[float, str, str]] = [
     (
@@ -125,6 +135,7 @@ def compute_score(
     verdict, detail = _verdict(overall)
 
     return ScoreSummary(
+        firm_standard=None,
         overall=overall,
         verdict=verdict,
         verdict_detail=detail,
@@ -141,3 +152,43 @@ def compute_score(
             for cat in Category
         ],
     )
+
+
+def apply_firm_standard(
+    summary: ScoreSummary, verdict: AuthenticityVerdict
+) -> ScoreSummary:
+    """Εφαρμόζει την πύλη του προτύπου γραφείου επί της βαθμολογίας.
+
+    Δικόγραφο που φέρει σαφή ίχνη AI (ai_marked) δεν επιτρέπεται να βγει
+    πάνω από «Ελλιπές»· οριακό (borderline) δεν επιτρέπεται να βγει «Άρτιο».
+    """
+    caps: dict[str, tuple[float, str]] = {
+        "ai_marked": (
+            FIRM_CAP_AI_MARKED,
+            "Το κείμενο φέρει σαφή ίχνη σύνταξης από AI — εκτός προτύπου "
+            "γραφείου· απαιτείται ανασύνταξη σε φυσικό δικανικό λόγο πριν "
+            "φέρει το λογότυπο της εταιρείας.",
+        ),
+        "borderline": (
+            FIRM_CAP_BORDERLINE,
+            "Μεμονωμένες ενδείξεις μη φυσικού λόγου καθιστούν αμφίβολη την "
+            "προέλευση του κειμένου — το δικόγραφο δεν χαρακτηρίζεται άρτιο "
+            "πριν την επιμέλεια των επίμαχων σημείων.",
+        ),
+    }
+    updates: dict = {"firm_standard": verdict}
+    if verdict in caps:
+        cap_value, reason = caps[verdict]
+        if summary.overall > cap_value:
+            new_overall = round(cap_value, 1)
+            new_verdict, new_detail = _verdict(new_overall)
+            updates.update(
+                overall=new_overall,
+                verdict=new_verdict,
+                verdict_detail=new_detail,
+                capped=True,
+                cap_reason=(
+                    f"{summary.cap_reason} {reason}" if summary.cap_reason else reason
+                ),
+            )
+    return summary.model_copy(update=updates)

@@ -14,7 +14,7 @@ type Phase =
   | { name: 'idle' }
   | {
       name: 'running';
-      step: 'classifying' | 'auditing';
+      step: 'classifying' | 'auditing' | 'firm_review';
       classification: DocumentClassification | null;
       auditor: AuditorInfo | null;
     }
@@ -39,6 +39,7 @@ export default function App() {
     setPhase({ name: 'running', step: 'classifying', classification: null, auditor: null });
     try {
       let classification: DocumentClassification | null = null;
+      let auditor: AuditorInfo | null = null;
       for await (const event of analyzeStream(text, context, docTypeHint)) {
         switch (event.stage) {
           case 'classified':
@@ -46,12 +47,11 @@ export default function App() {
             setPhase({ name: 'running', step: 'auditing', classification, auditor: null });
             break;
           case 'auditing':
-            setPhase({
-              name: 'running',
-              step: 'auditing',
-              classification,
-              auditor: event.data.auditor,
-            });
+            auditor = event.data.auditor;
+            setPhase({ name: 'running', step: 'auditing', classification, auditor });
+            break;
+          case 'firm_review':
+            setPhase({ name: 'running', step: 'firm_review', classification, auditor });
             break;
           case 'complete':
             setPhase({ name: 'done', report: event.data });

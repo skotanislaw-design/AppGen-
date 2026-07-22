@@ -109,6 +109,79 @@ class AuditModelOutput(StrictModel):
 
 
 # ---------------------------------------------------------------------------
+# Structured outputs — Στάδιο 3: Πρότυπο Γραφείου (δικανικός λόγος / ίχνη AI)
+# ---------------------------------------------------------------------------
+
+TellType = Literal["structure", "phrasing", "rhythm", "register", "citation", "other"]
+AuthenticityVerdict = Literal["human_register", "borderline", "ai_marked"]
+
+
+class AITellFinding(StrictModel):
+    tell_type: TellType = Field(
+        description=(
+            "Είδος ένδειξης AI: structure (λίστες/συμμετρία), phrasing "
+            "(τυποποιημένες AI φράσεις), rhythm (μηχανικός ρυθμός), register "
+            "(γραφειοκρατικό αντί δικανικό ύφος), citation (ρηχή/γενικόλογη "
+            "τεκμηρίωση), other."
+        )
+    )
+    quote: str = Field(
+        description="Αυτούσιο απόσπασμα του εγγράφου που φέρει την ένδειξη."
+    )
+    explanation: str = Field(
+        description="Γιατί το απόσπασμα προδίδει σύνταξη από AI ή αποκλίνει από φυσικό δικανικό λόγο."
+    )
+    rewrite: str | None = Field(
+        default=None,
+        description="Προτεινόμενη αναδιατύπωση σε φυσικό, υψηλό δικανικό ύφος — όπου έχει νόημα.",
+    )
+
+
+class ExemplaryGap(StrictModel):
+    aspect: str = Field(
+        description="Η πτυχή που υπολείπεται του υποδειγματικού επιπέδου (π.χ. νομολογιακή τεκμηρίωση)."
+    )
+    gap: str = Field(description="Τι ακριβώς λείπει σε σχέση με το πρότυπο του γραφείου.")
+    proposed_action: str = Field(
+        description="Συγκεκριμένη ενέργεια για να φθάσει το έγγραφο σε υποδειγματικό επίπεδο."
+    )
+
+
+class FirmStandardReview(StrictModel):
+    authenticity_verdict: AuthenticityVerdict = Field(
+        description=(
+            "human_register: ο λόγος είναι φυσικός, δεν διακρίνεται από κείμενο "
+            "έμπειρου δικηγόρου· borderline: μεμονωμένες ενδείξεις που καθιστούν "
+            "αμφίβολη την προέλευση· ai_marked: το κείμενο φέρει σαφή ίχνη AI."
+        )
+    )
+    register_score: int = Field(
+        description=(
+            "0-100: εγγύτητα στο υποδειγματικό πρότυπο δικανικού λόγου του "
+            "γραφείου (ρυθμός, ύφος, τεκμηρίωση, πειστική δομή)."
+        )
+    )
+    ai_tell_findings: list[AITellFinding] = Field(
+        description="Κάθε εντοπισμένη ένδειξη AI, με απόσπασμα και αναδιατύπωση."
+    )
+    exemplary_gaps: list[ExemplaryGap] = Field(
+        description="Ό,τι υπολείπεται για να είναι το δικόγραφο υποδειγματικό, πέραν των ενδείξεων AI."
+    )
+    assessment: str = Field(
+        description=(
+            "Κρίση 1-2 παραγράφων σε ρέοντα νομικό λόγο: μπορεί το έγγραφο να "
+            "φέρει το λογότυπο του γραφείου ως έχει, και τι το χωρίζει από το "
+            "υποδειγματικό επίπεδο."
+        )
+    )
+
+    @field_validator("register_score")
+    @classmethod
+    def _clamp(cls, v: int) -> int:
+        return max(0, min(100, v))
+
+
+# ---------------------------------------------------------------------------
 # API μοντέλα
 # ---------------------------------------------------------------------------
 
@@ -153,6 +226,8 @@ class ScoreSummary(BaseModel):
     capped: bool
     cap_reason: str | None
     categories: list[CategoryScore]
+    # Ετυμηγορία προτύπου γραφείου (στάδιο 3) — None πριν την εφαρμογή της.
+    firm_standard: AuthenticityVerdict | None = None
 
 
 class AuditorInfo(BaseModel):
@@ -168,6 +243,7 @@ class AuditReport(BaseModel):
     criteria: list[CriterionReport]
     extra_findings: list[ExtraFinding]
     suggestions: list[Suggestion]
+    firm_standard: FirmStandardReview
     overall_assessment: str
     model: str
 

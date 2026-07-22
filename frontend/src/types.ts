@@ -41,6 +41,7 @@ export interface ScoreSummary {
   capped: boolean;
   cap_reason: string | null;
   categories: CategoryScore[];
+  firm_standard: AuthenticityVerdict | null;
 }
 
 export interface ExtraFinding {
@@ -62,6 +63,30 @@ export interface AuditorInfo {
   description: string;
 }
 
+export type TellType = 'structure' | 'phrasing' | 'rhythm' | 'register' | 'citation' | 'other';
+export type AuthenticityVerdict = 'human_register' | 'borderline' | 'ai_marked';
+
+export interface AITellFinding {
+  tell_type: TellType;
+  quote: string;
+  explanation: string;
+  rewrite: string | null;
+}
+
+export interface ExemplaryGap {
+  aspect: string;
+  gap: string;
+  proposed_action: string;
+}
+
+export interface FirmStandardReview {
+  authenticity_verdict: AuthenticityVerdict;
+  register_score: number;
+  ai_tell_findings: AITellFinding[];
+  exemplary_gaps: ExemplaryGap[];
+  assessment: string;
+}
+
 export interface AuditReport {
   classification: DocumentClassification;
   auditor: AuditorInfo;
@@ -69,6 +94,7 @@ export interface AuditReport {
   criteria: CriterionReport[];
   extra_findings: ExtraFinding[];
   suggestions: Suggestion[];
+  firm_standard: FirmStandardReview;
   overall_assessment: string;
   model: string;
 }
@@ -84,5 +110,6 @@ export type PipelineStage =
   | { stage: 'classifying'; data: null }
   | { stage: 'classified'; data: DocumentClassification }
   | { stage: 'auditing'; data: { criteria_count: number; auditor: AuditorInfo } }
+  | { stage: 'firm_review'; data: null }
   | { stage: 'complete'; data: AuditReport }
   | { stage: 'error'; data: { detail: string; code: string } };

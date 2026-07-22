@@ -1,6 +1,7 @@
 import type { AuditReport } from '../types';
 import { CategoryBreakdown } from './CategoryBreakdown';
 import { CriteriaList } from './CriteriaList';
+import { FirmStandardSection } from './FirmStandardSection';
 import { ScoreGauge } from './ScoreGauge';
 import { Suggestions } from './Suggestions';
 
@@ -57,6 +58,8 @@ export const ReportView: React.FC<ReportViewProps> = ({ report, onReset }) => (
           ))}
       </div>
     </div>
+
+    <FirmStandardSection review={report.firm_standard} />
 
     <Suggestions suggestions={report.suggestions} extraFindings={report.extra_findings} />
 
