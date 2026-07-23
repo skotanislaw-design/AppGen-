@@ -4,10 +4,11 @@ import logging
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import get_settings
+from app.docx_export import build_exemplar_docx
 from app.exemplars import EXEMPLARS
 from app.extraction import ExtractionError, extract_text
 from app.pipeline import checklists
@@ -112,6 +113,28 @@ async def exemplar_detail(doc_type: str) -> ExemplarDetail:
         body=ex.body,
         drafting_notes=ex.drafting_notes,
         key_provisions=ex.key_provisions,
+    )
+
+
+@app.get("/api/exemplars/{doc_type}/docx")
+async def exemplar_docx(doc_type: str) -> Response:
+    ex = EXEMPLARS.get(doc_type)
+    if ex is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "detail": "Δεν υπάρχει υπόδειγμα για το είδος αυτό.",
+                "code": "exemplar_not_found",
+            },
+        )
+    data = build_exemplar_docx(ex)
+    filename = f"skotanis-ypodeigma-{doc_type}.docx"
+    return Response(
+        content=data,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ),
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

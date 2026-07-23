@@ -37,6 +37,20 @@ export async function fetchExemplar(docType: string): Promise<ExemplarDetail> {
   return res.json();
 }
 
+export async function downloadExemplarDocx(docType: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/exemplars/${encodeURIComponent(docType)}/docx`);
+  if (!res.ok) throw new Error(await readErrorDetail(res));
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `skotanis-ypodeigma-${docType}.docx`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
 export async function extractFile(file: File): Promise<{ text: string; characters: number }> {
   const form = new FormData();
   form.append('file', file);

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { fetchExemplar, fetchExemplars } from '../lib/api';
+import { downloadExemplarDocx, fetchExemplar, fetchExemplars } from '../lib/api';
 import type { ExemplarDetail, ExemplarSummary } from '../types';
 
 const BRANCH_LABELS: Record<string, string> = {
@@ -18,6 +18,7 @@ export const ExemplarLibrary: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetchExemplars()
@@ -59,6 +60,19 @@ export const ExemplarLibrary: React.FC = () => {
     window.setTimeout(() => setCopied(false), 2000);
   };
 
+  const downloadDocx = async () => {
+    if (!selected) return;
+    setDownloading(true);
+    setError(null);
+    try {
+      await downloadExemplarDocx(selected.doc_type);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Αποτυχία λήψης DOCX.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (selected) {
     return (
       <div className="flex flex-col gap-6">
@@ -66,10 +80,21 @@ export const ExemplarLibrary: React.FC = () => {
           <button type="button" className="btn-ghost" onClick={() => setSelected(null)}>
             ← Βιβλιοθήκη
           </button>
-          <button type="button" className="btn-gold" onClick={() => void copyBody()}>
-            {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή σχεδίου'}
-          </button>
+          <div className="flex gap-3">
+            <button type="button" className="btn-ghost" onClick={() => void copyBody()}>
+              {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή'}
+            </button>
+            <button
+              type="button"
+              className="btn-gold"
+              disabled={downloading}
+              onClick={() => void downloadDocx()}
+            >
+              {downloading ? 'Δημιουργία…' : 'Λήψη DOCX (επιστολόχαρτο)'}
+            </button>
+          </div>
         </div>
+        {error && <p className="text-center text-sm text-red-300">{error}</p>}
 
         <div className="glass-card p-6 md:p-8">
           <p className="text-xs uppercase tracking-widest text-silver">
