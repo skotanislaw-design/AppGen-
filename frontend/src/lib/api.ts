@@ -7,7 +7,34 @@ import type {
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
+const API_KEY_STORAGE = 'nomos_audit_api_key';
+
+export function getApiKey(): string {
+  try {
+    return localStorage.getItem(API_KEY_STORAGE) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+export function setApiKey(key: string): void {
+  try {
+    if (key.trim()) localStorage.setItem(API_KEY_STORAGE, key.trim());
+    else localStorage.removeItem(API_KEY_STORAGE);
+  } catch {
+    // αγνόησε — private mode ή απενεργοποιημένο storage
+  }
+}
+
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const key = getApiKey();
+  return key ? { ...extra, Authorization: `Bearer ${key}` } : extra;
+}
+
 async function readErrorDetail(res: Response): Promise<string> {
+  if (res.status === 401) {
+    return 'Απαιτείται έγκυρο κλειδί πρόσβασης (API key) — ορίστε το από τις ρυθμίσεις.';
+  }
   try {
     const body = await res.json();
     const detail = body?.detail;
@@ -54,7 +81,11 @@ export async function downloadExemplarDocx(docType: string): Promise<void> {
 export async function extractFile(file: File): Promise<{ text: string; characters: number }> {
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch(`${API_URL}/api/extract`, { method: 'POST', body: form });
+  const res = await fetch(`${API_URL}/api/extract`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: form,
+  });
   if (!res.ok) throw new Error(await readErrorDetail(res));
   return res.json();
 }
@@ -66,7 +97,7 @@ export async function* analyzeStream(
 ): AsyncGenerator<PipelineStage> {
   const res = await fetch(`${API_URL}/api/analyze/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ text, context, doc_type_hint: docTypeHint }),
   });
   if (!res.ok || !res.body) throw new Error(await readErrorDetail(res));

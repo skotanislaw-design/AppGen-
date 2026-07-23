@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { AccessKeySettings } from './components/AccessKeySettings';
 import { DocumentInput } from './components/DocumentInput';
 import { ExemplarLibrary } from './components/ExemplarLibrary';
 import { ProgressPanel } from './components/ProgressPanel';
@@ -94,6 +95,10 @@ export default function App() {
         <p className="mt-2 text-sm text-silver-light">
           Αυστηρός έλεγχος νομικής πληρότητας δικογράφων — ποινικά, αστικά, διοικητικά, εξώδικα
         </p>
+
+        <div className="mt-4 flex justify-center">
+          <AccessKeySettings />
+        </div>
 
         <nav className="mt-6 inline-flex rounded-lg border border-gold/25 bg-white/5 p-1">
           <button
