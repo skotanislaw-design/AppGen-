@@ -1,4 +1,9 @@
-import type { DocumentTypeInfo, PipelineStage } from '../types';
+import type {
+  DocumentTypeInfo,
+  ExemplarDetail,
+  ExemplarSummary,
+  PipelineStage,
+} from '../types';
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
 
@@ -16,6 +21,18 @@ async function readErrorDetail(res: Response): Promise<string> {
 
 export async function fetchDocumentTypes(): Promise<DocumentTypeInfo[]> {
   const res = await fetch(`${API_URL}/api/document-types`);
+  if (!res.ok) throw new Error(await readErrorDetail(res));
+  return res.json();
+}
+
+export async function fetchExemplars(): Promise<ExemplarSummary[]> {
+  const res = await fetch(`${API_URL}/api/exemplars`);
+  if (!res.ok) throw new Error(await readErrorDetail(res));
+  return res.json();
+}
+
+export async function fetchExemplar(docType: string): Promise<ExemplarDetail> {
+  const res = await fetch(`${API_URL}/api/exemplars/${encodeURIComponent(docType)}`);
   if (!res.ok) throw new Error(await readErrorDetail(res));
   return res.json();
 }

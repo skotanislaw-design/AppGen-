@@ -106,6 +106,20 @@ export interface DocumentTypeInfo {
   description: string;
 }
 
+export interface ExemplarSummary {
+  doc_type: string;
+  doc_type_label: string;
+  branch: string;
+  title: string;
+  scenario: string;
+}
+
+export interface ExemplarDetail extends ExemplarSummary {
+  body: string;
+  drafting_notes: string[];
+  key_provisions: string[];
+}
+
 export type PipelineStage =
   | { stage: 'classifying'; data: null }
   | { stage: 'classified'; data: DocumentClassification }

@@ -259,3 +259,17 @@ class DocumentTypeInfo(BaseModel):
     label: str
     branch: str
     description: str
+
+
+class ExemplarSummary(BaseModel):
+    doc_type: str
+    doc_type_label: str
+    branch: str
+    title: str
+    scenario: str
+
+
+class ExemplarDetail(ExemplarSummary):
+    body: str
+    drafting_notes: list[str]
+    key_provisions: list[str]

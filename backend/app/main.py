@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.config import get_settings
+from app.exemplars import EXEMPLARS
 from app.extraction import ExtractionError, extract_text
 from app.pipeline import checklists
 from app.pipeline.engine import (
@@ -20,6 +21,8 @@ from app.schemas import (
     AnalyzeRequest,
     AuditReport,
     DocumentTypeInfo,
+    ExemplarDetail,
+    ExemplarSummary,
     ExtractResponse,
 )
 
@@ -72,6 +75,44 @@ async def document_types() -> list[DocumentTypeInfo]:
         )
         for spec in checklists.DOCUMENT_TYPES.values()
     ]
+
+
+@app.get("/api/exemplars", response_model=list[ExemplarSummary])
+async def exemplars() -> list[ExemplarSummary]:
+    return [
+        ExemplarSummary(
+            doc_type=ex.doc_type,
+            doc_type_label=checklists.get_spec(ex.doc_type).label,
+            branch=checklists.get_spec(ex.doc_type).branch,
+            title=ex.title,
+            scenario=ex.scenario,
+        )
+        for ex in EXEMPLARS.values()
+    ]
+
+
+@app.get("/api/exemplars/{doc_type}", response_model=ExemplarDetail)
+async def exemplar_detail(doc_type: str) -> ExemplarDetail:
+    ex = EXEMPLARS.get(doc_type)
+    if ex is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "detail": "Δεν υπάρχει υπόδειγμα για το είδος αυτό.",
+                "code": "exemplar_not_found",
+            },
+        )
+    spec = checklists.get_spec(ex.doc_type)
+    return ExemplarDetail(
+        doc_type=ex.doc_type,
+        doc_type_label=spec.label,
+        branch=spec.branch,
+        title=ex.title,
+        scenario=ex.scenario,
+        body=ex.body,
+        drafting_notes=ex.drafting_notes,
+        key_provisions=ex.key_provisions,
+    )
 
 
 @app.post(

@@ -21,6 +21,7 @@ from anthropic import AsyncAnthropic
 from pydantic import BaseModel
 
 from app.config import Settings, get_settings
+from app.exemplars import exemplar_for
 from app.pipeline import checklists
 from app.pipeline.checklists import CATEGORY_LABELS, Criterion
 from app.pipeline.experts import ExpertProfile, expert_for
@@ -347,6 +348,25 @@ AUDIT_TASK_TEMPLATE = """\
 πού στέκει το δικόγραφο, πού κινδυνεύει, τι προέχει να διορθωθεί.
 """
 
+EXEMPLAR_REFERENCE_TEMPLATE = """\
+
+ΥΠΟΔΕΙΓΜΑ ΑΝΑΦΟΡΑΣ ΤΟΥ ΓΡΑΦΕΙΟΥ ΓΙΑ ΤΟ ΕΙΔΟΣ — «{title}»
+
+Το ακόλουθο σχέδιο αποτελεί το υπόδειγμα του γραφείου για το είδος αυτό και \
+ορίζει τον πήχυ ως προς τη δομική οικονομία (σειρά και αναλογίες τμημάτων), \
+την πληρότητα της θεμελίωσης και το επίπεδο του δικανικού λόγου. \
+Χρησιμοποίησέ το ως μέτρο σύγκρισης: αξιολόγησε αν το ελεγχόμενο έγγραφο \
+καλύπτει τα αντίστοιχα δομικά και ουσιαστικά στοιχεία στον βαθμό που τα \
+καλύπτει το υπόδειγμα. ΜΗΝ απαιτείς λεκτική ταύτιση ούτε πανομοιότυπη \
+διάταξη — τα πραγματικά κάθε υπόθεσης διαφέρουν· απαίτησε όμως ισοδύναμη \
+δομική πληρότητα και θεμελίωση. Τα [ΣΥΜΠΛΗΡΩΣΤΕ] του υποδείγματος σημειώνουν \
+θέσεις εξατομίκευσης, όχι ελλείψεις του.
+
+<ΥΠΟΔΕΙΓΜΑ>
+{body}
+</ΥΠΟΔΕΙΓΜΑ>
+"""
+
 
 async def audit(
     client: AsyncAnthropic,
@@ -363,6 +383,11 @@ async def audit(
         stage=classification.procedural_stage or "δεν προσδιορίζεται",
         checklist=_render_checklist(criteria),
     )
+    exemplar = exemplar_for(classification.doc_type)
+    if exemplar is not None:
+        task += EXEMPLAR_REFERENCE_TEMPLATE.format(
+            title=exemplar.title, body=exemplar.body
+        )
     return await _structured_call(
         client,
         settings,

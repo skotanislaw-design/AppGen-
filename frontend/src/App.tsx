@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DocumentInput } from './components/DocumentInput';
+import { ExemplarLibrary } from './components/ExemplarLibrary';
 import { ProgressPanel } from './components/ProgressPanel';
 import { ReportView } from './components/ReportView';
 import { analyzeStream, fetchDocumentTypes } from './lib/api';
@@ -21,7 +22,10 @@ type Phase =
   | { name: 'done'; report: AuditReport }
   | { name: 'error'; message: string };
 
+type View = 'audit' | 'exemplars';
+
 export default function App() {
+  const [view, setView] = useState<View>('audit');
   const [phase, setPhase] = useState<Phase>({ name: 'idle' });
   const [documentTypes, setDocumentTypes] = useState<DocumentTypeInfo[]>([]);
 
@@ -90,29 +94,64 @@ export default function App() {
         <p className="mt-2 text-sm text-silver-light">
           Αυστηρός έλεγχος νομικής πληρότητας δικογράφων — ποινικά, αστικά, διοικητικά, εξώδικα
         </p>
+
+        <nav className="mt-6 inline-flex rounded-lg border border-gold/25 bg-white/5 p-1">
+          <button
+            type="button"
+            className={`rounded-md px-5 py-2 text-xs font-semibold uppercase tracking-widest transition ${
+              view === 'audit' ? 'bg-gold text-navy' : 'text-silver hover:text-white'
+            }`}
+            onClick={() => setView('audit')}
+          >
+            Έλεγχος Δικογράφου
+          </button>
+          <button
+            type="button"
+            className={`rounded-md px-5 py-2 text-xs font-semibold uppercase tracking-widest transition ${
+              view === 'exemplars' ? 'bg-gold text-navy' : 'text-silver hover:text-white'
+            }`}
+            onClick={() => setView('exemplars')}
+          >
+            Βιβλιοθήκη Υποδειγμάτων
+          </button>
+        </nav>
       </header>
 
       <main className="flex-1">
-        {phase.name === 'idle' && (
-          <DocumentInput documentTypes={documentTypes} disabled={false} onSubmit={runAnalysis} />
-        )}
-        {phase.name === 'running' && (
-          <ProgressPanel
-            state={phase.step}
-            classification={phase.classification}
-            auditor={phase.auditor}
-          />
-        )}
-        {phase.name === 'done' && (
-          <ReportView report={phase.report} onReset={() => setPhase({ name: 'idle' })} />
-        )}
-        {phase.name === 'error' && (
-          <div className="glass-card flex flex-col items-center gap-4 p-8 text-center">
-            <p className="text-sm text-red-300">{phase.message}</p>
-            <button type="button" className="btn-ghost" onClick={() => setPhase({ name: 'idle' })}>
-              Επιστροφή
-            </button>
-          </div>
+        {view === 'exemplars' ? (
+          <ExemplarLibrary />
+        ) : (
+          <>
+            {phase.name === 'idle' && (
+              <DocumentInput
+                documentTypes={documentTypes}
+                disabled={false}
+                onSubmit={runAnalysis}
+              />
+            )}
+            {phase.name === 'running' && (
+              <ProgressPanel
+                state={phase.step}
+                classification={phase.classification}
+                auditor={phase.auditor}
+              />
+            )}
+            {phase.name === 'done' && (
+              <ReportView report={phase.report} onReset={() => setPhase({ name: 'idle' })} />
+            )}
+            {phase.name === 'error' && (
+              <div className="glass-card flex flex-col items-center gap-4 p-8 text-center">
+                <p className="text-sm text-red-300">{phase.message}</p>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setPhase({ name: 'idle' })}
+                >
+                  Επιστροφή
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 
