@@ -122,6 +122,14 @@ docker compose up --build
 # Εφαρμογή: http://localhost:8080
 ```
 
+### Παραγωγή — Hetzner (audit.skotanislaw.gr)
+
+Πλήρης οδηγός και έτοιμα αρχεία στο [`deploy/`](deploy/README.md): script
+deploy με health check (`deploy/deploy.sh`), nginx vhost για το
+`audit.skotanislaw.gr` (`deploy/nginx-audit.conf`) και βήματα SSL/certbot.
+Η εφαρμογή δένει μόνο στο `127.0.0.1:8080` και εκτίθεται μέσω του reverse
+proxy του server.
+
 ### Τοπικά (development)
 
 ```bash

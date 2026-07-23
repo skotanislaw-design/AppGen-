@@ -17,7 +17,9 @@ services:
         # Το frontend μιλά στο /api μέσω του nginx του ίδιου container
         VITE_API_URL: ""
     ports:
-      - "8080:80"
+      # Δένεται μόνο στο loopback — δημόσια έκθεση γίνεται αποκλειστικά μέσω
+      # του TLS reverse proxy του server (βλ. deploy/).
+      - "127.0.0.1:${NOMOS_AUDIT_PORT:-8080}:80"
     depends_on:
       - api
     restart: unless-stopped
