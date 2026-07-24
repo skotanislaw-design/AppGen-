@@ -186,6 +186,29 @@ cd backend && python -m pytest
 | `NOMOS_AUDIT_API_KEY` | κενό | Προαιρετικό bearer token προστασίας του API |
 | `NOMOS_AUDIT_CORS_ORIGINS` | `http://localhost:5173` | Επιτρεπόμενα origins |
 
+## Ενσωμάτωση στο Nomos One (JWT/RBAC)
+
+Πέρα από την αυτόνομη λειτουργία, ο έλεγχος προσαρτάται στο Nomos One LPMS
+πίσω από το υπάρχον JWT + RBAC. Το `backend/app/integration.py` εκθέτει
+`create_audit_router(auth_dependency=..., on_result=...)`: δέχεται το δικό
+σας `require_role([...])` και το εφαρμόζει σε όλες τις διαδρομές
+(`/api/audit/*`), ενώ ένα προαιρετικό hook συνδέει το αποτέλεσμα με υπόθεση
+(matter) στο MongoDB. Πλήρες πακέτο και runbook (backend mount, frontend
+σελίδα με το JWT του LPMS, RBAC ρόλοι, εμμονή ιστορικού) στο
+[`integrations/nomos_one/`](integrations/nomos_one/README.md).
+
+```python
+from app.core.auth import require_role
+from nomos_audit.integration import create_audit_router
+
+app.include_router(
+    create_audit_router(
+        auth_dependency=require_role(["super_admin", "admin", "attorney", "paralegal"]),
+    ),
+    prefix="/api",
+)
+```
+
 ## Επέκταση
 
 - **Νέο είδος δικογράφου**: προσθέστε `DocumentTypeSpec` με κριτήρια στο
