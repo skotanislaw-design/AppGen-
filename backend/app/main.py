@@ -185,6 +185,9 @@ async def analyze_stream(request: AnalyzeRequest) -> StreamingResponse:
             async for stage, payload in run_pipeline_events(
                 request.text, request.context, request.doc_type_hint
             ):
+                # Το "usage" είναι εσωτερικό γεγονός cost-tracking — δεν προωθείται.
+                if stage == "usage":
+                    continue
                 yield sse_event(stage, payload)
         except PipelineError as exc:
             yield sse_event("error", {"detail": str(exc), "code": "pipeline_error"})

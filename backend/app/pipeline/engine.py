@@ -165,6 +165,7 @@ async def firm_review(
     client: AsyncAnthropic,
     settings: Settings,
     document: dict[str, Any],
+    usage_acc: dict | None = None,
 ) -> FirmStandardReview:
     return await _structured_call(
         client,
@@ -174,6 +175,7 @@ async def firm_review(
         task=FIRM_REVIEW_TASK,
         output_model=FirmStandardReview,
         effort=settings.audit_effort,
+        usage_acc=usage_acc,
     )
 
 
@@ -193,6 +195,18 @@ def _document_block(text: str, context: str | None) -> dict[str, Any]:
     }
 
 
+def _accumulate_usage(usage_acc: dict | None, response: Any) -> None:
+    """Προσθέτει τα tokens μιας απόκρισης στον συλλέκτη (για cost-tracking)."""
+    if usage_acc is None:
+        return
+    u = getattr(response, "usage", None)
+    if u is None:
+        return
+    for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"):
+        usage_acc[k] = usage_acc.get(k, 0) + (getattr(u, k, 0) or 0)
+    usage_acc["calls"] = usage_acc.get("calls", 0) + 1
+
+
 async def _structured_call(
     client: AsyncAnthropic,
     settings: Settings,
@@ -202,6 +216,7 @@ async def _structured_call(
     task: str,
     output_model: type[T],
     effort: str,
+    usage_acc: dict | None = None,
 ) -> T:
     schema = output_model.model_json_schema()
     try:
@@ -236,6 +251,9 @@ async def _structured_call(
         raise PipelineError(f"Σφάλμα Claude API ({exc.status_code}).") from exc
     except anthropic.APIConnectionError as exc:
         raise PipelineError("Αδυναμία σύνδεσης με το Claude API.") from exc
+
+    # Τα tokens χρεώθηκαν ανεξαρτήτως stop_reason — τα καταγράφουμε τώρα.
+    _accumulate_usage(usage_acc, response)
 
     if response.stop_reason == "refusal":
         raise PipelineError(
@@ -278,6 +296,7 @@ async def classify(
     client: AsyncAnthropic,
     settings: Settings,
     document: dict[str, Any],
+    usage_acc: dict | None = None,
 ) -> DocumentClassification:
     task = CLASSIFY_TASK_TEMPLATE.format(menu=checklists.classification_menu())
     result = await _structured_call(
@@ -288,6 +307,7 @@ async def classify(
         task=task,
         output_model=DocumentClassification,
         effort=settings.classification_effort,
+        usage_acc=usage_acc,
     )
     if result.doc_type not in checklists.DOCUMENT_TYPES:
         result = result.model_copy(update={"doc_type": "generic"})
@@ -375,6 +395,7 @@ async def audit(
     classification: DocumentClassification,
     criteria: list[Criterion],
     expert: ExpertProfile,
+    usage_acc: dict | None = None,
 ) -> AuditModelOutput:
     task = AUDIT_TASK_TEMPLATE.format(
         label=classification.label,
@@ -396,6 +417,7 @@ async def audit(
         task=task,
         output_model=AuditModelOutput,
         effort=settings.audit_effort,
+        usage_acc=usage_acc,
     )
 
 
@@ -483,6 +505,14 @@ async def run_pipeline_events(
     settings = get_settings()
     cleaned = _validate_input(text, settings)
     document = _document_block(cleaned, context)
+    usage_acc: dict = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "calls": 0,
+        "model": settings.model,
+    }
 
     async with AsyncAnthropic() as client:
         yield "classifying", None
@@ -499,7 +529,7 @@ async def run_pipeline_events(
                 confidence="high",
             )
         else:
-            classification = await classify(client, settings, document)
+            classification = await classify(client, settings, document, usage_acc)
         yield "classified", classification
 
         # Δρομολόγηση στον ειδικό του κλάδου — ο ποινικολόγος δεν ελέγχει
@@ -518,17 +548,36 @@ async def run_pipeline_events(
             },
         )
         audit_output = await audit(
-            client, settings, document, classification, criteria, expert
+            client, settings, document, classification, criteria, expert, usage_acc
         )
 
         # Στάδιο 3: πρότυπο γραφείου — υποδειγματικός λόγος, μηδενικά ίχνη AI.
         yield "firm_review", None
-        firm_standard = await firm_review(client, settings, document)
+        firm_standard = await firm_review(client, settings, document, usage_acc)
 
         report = _build_report(
             settings, classification, criteria, audit_output, expert, firm_standard
         )
+        # Συγκεντρωτικό usage των 3 κλήσεων — για cost-tracking στον καλούντα.
+        yield "usage", usage_acc
         yield "complete", report
+
+
+async def run_pipeline_with_usage(
+    text: str,
+    context: str | None = None,
+    doc_type_hint: str | None = None,
+) -> tuple[AuditReport, dict | None]:
+    """Όπως το run_pipeline, αλλά επιστρέφει και το συγκεντρωτικό usage."""
+    report: AuditReport | None = None
+    usage: dict | None = None
+    async for stage, payload in run_pipeline_events(text, context, doc_type_hint):
+        if stage == "usage":
+            usage = payload
+        elif stage == "complete":
+            report = payload
+    assert report is not None
+    return report, usage
 
 
 async def run_pipeline(
@@ -536,11 +585,7 @@ async def run_pipeline(
     context: str | None = None,
     doc_type_hint: str | None = None,
 ) -> AuditReport:
-    report: AuditReport | None = None
-    async for stage, payload in run_pipeline_events(text, context, doc_type_hint):
-        if stage == "complete":
-            report = payload
-    assert report is not None
+    report, _ = await run_pipeline_with_usage(text, context, doc_type_hint)
     return report
 
 
