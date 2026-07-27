@@ -110,6 +110,8 @@ def _firm_json() -> str:
 
 
 def _patch_model(monkeypatch, *, missing_critical: bool):
+    # Προσομοίωση ρυθμισμένου deployment (το engine ελέγχει το κλειδί νωρίς).
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     responses = [
         _Resp(_classification_json(), _Usage(100, 200)),   # classify
         _Resp(_audit_json(missing_critical), _Usage(300, 400)),  # audit
@@ -160,6 +162,7 @@ async def test_missing_critical_caps_score_end_to_end(monkeypatch):
 @pytest.mark.anyio
 async def test_doc_type_hint_skips_classification(monkeypatch):
     # Με ρητό είδος, η ταξινόμηση παρακάμπτεται → 2 κλήσεις (audit + firm).
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     responses = [
         _Resp(_audit_json(False), _Usage(300, 400)),
         _Resp(_firm_json(), _Usage(50, 60)),
@@ -169,6 +172,17 @@ async def test_doc_type_hint_skips_classification(monkeypatch):
     assert report.classification.doc_type == "agogi"
     assert usage["calls"] == 2
     assert report.auditor.branch == "civil"
+
+
+@pytest.mark.anyio
+async def test_missing_api_key_raises_clean_pipeline_error(monkeypatch):
+    # Χωρίς κλειδί, ο έλεγχος αποτυγχάνει με καθαρό PipelineError (→ 422 στο API),
+    # όχι με ασαφές TypeError/500.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+    with pytest.raises(engine.PipelineError) as exc:
+        await engine.run_pipeline_with_usage(DOC)
+    assert "ANTHROPIC_API_KEY" in str(exc.value)
 
 
 @pytest.fixture

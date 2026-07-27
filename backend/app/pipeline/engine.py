@@ -13,6 +13,7 @@ experts.py), ο οποίος φέρει το γνωστικό υπόβαθρο �
 """
 
 import json
+import os
 from collections.abc import AsyncIterator
 from typing import Any, TypeVar
 
@@ -40,6 +41,14 @@ T = TypeVar("T", bound=BaseModel)
 
 class PipelineError(RuntimeError):
     """Σφάλμα εκτέλεσης του pipeline με μήνυμα κατάλληλο για τον χρήστη."""
+
+
+def _has_api_credentials() -> bool:
+    """Ο AsyncAnthropic() αντλεί το κλειδί από το περιβάλλον. Χωρίς κλειδί, η
+    κλήση αποτυγχάνει με ασαφές TypeError· ελέγχουμε νωρίς για καθαρό μήνυμα."""
+    return bool(
+        os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+    )
 
 
 TRIAGE_SYSTEM_PROMPT = """\
@@ -503,6 +512,11 @@ async def run_pipeline_events(
     auditing, complete}.
     """
     settings = get_settings()
+    if not _has_api_credentials():
+        raise PipelineError(
+            "Ο έλεγχος δεν είναι διαθέσιμος: δεν έχει ρυθμιστεί κλειδί AI "
+            "(ANTHROPIC_API_KEY) στον διακομιστή."
+        )
     cleaned = _validate_input(text, settings)
     document = _document_block(cleaned, context)
     usage_acc: dict = {

@@ -44,6 +44,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def _startup_checks() -> None:
+    import os
+
+    if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+        logger.warning(
+            "ANTHROPIC_API_KEY δεν έχει οριστεί — ο έλεγχος (/api/analyze) θα "
+            "αποτυγχάνει με 422 μέχρι να ρυθμιστεί στο περιβάλλον του διακομιστή."
+        )
+
+
 _bearer = HTTPBearer(auto_error=False)
 
 
